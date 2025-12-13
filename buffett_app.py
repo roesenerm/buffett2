@@ -33,21 +33,6 @@ client = genai.Client(api_key=GEMINI_API_KEY)
 
 headers = {"User-Agent": "Matthew matthew@example.com"}
 
-# Create audio directory if it doesn't exist
-AUDIO_DIR = os.path.join(os.getcwd(), "audio_files")
-os.makedirs(AUDIO_DIR, exist_ok=True)
-
-def wave_file(filename, pcm, channels=1, rate=24000, sample_width=2):
-   """Save PCM audio data as WAV file."""
-   filepath = os.path.join(AUDIO_DIR, filename)
-   with wave.open(filepath, "wb") as wf:
-      wf.setnchannels(channels)
-      wf.setsampwidth(sample_width)
-      wf.setframerate(rate)
-      wf.writeframes(pcm)
-   logger.info(f"Saved audio file: {filename}")
-   return filename
-
 def get_cik(ticker):
     """Resolve ticker to CIK using SEC API."""
     try:
@@ -161,19 +146,6 @@ def analyze_with_gemini(section_name, section_text):
 def home():
     return render_template("index.html")
 
-@app.route("/audio/<filename>")
-def serve_audio(filename):
-    """Serve audio files from the audio_files directory."""
-    try:
-        filepath = os.path.join(AUDIO_DIR, filename)
-        if not os.path.exists(filepath):
-            logger.warning(f"Audio file not found: {filename}")
-            return jsonify({"error": "Audio file not found"}), 404
-        return send_file(filepath, mimetype="audio/wav")
-    except Exception as e:
-        logger.error(f"Error serving audio file {filename}: {e}")
-        return jsonify({"error": "Error serving audio file"}), 500
-
 @app.route("/analyze/10k/<ticker>/<section>")
 def analyze_10k(ticker, section):
     try:
@@ -202,42 +174,8 @@ def analyze_10k(ticker, section):
         if not summary:
             return jsonify({"error": "Failed to generate summary"}), 500
 
-        # Make TTS optional via query param (?tts=true|false)
-        tts_enabled = request.args.get("tts", "false").lower() == "true"
-        
-        if tts_enabled:
-            # Generate TTS audio from summary using Gemini
-            try:
-                logger.info("Generating TTS audio...")
-                tts_response = client.models.generate_content(
-                    model="gemini-2.5-flash-preview-tts",
-                    contents=f"Read this summary: {summary}",
-                    config=types.GenerateContentConfig(
-                        response_modalities=["AUDIO"],
-                        speech_config=types.SpeechConfig(
-                            voice_config=types.VoiceConfig(
-                                prebuilt_voice_config=types.PrebuiltVoiceConfig(
-                                    voice_name='Kore',
-                                )
-                            )
-                        ),
-                    )
-                )
-
-                data = tts_response.candidates[0].content.parts[0].inline_data.data
-                filename = f"{ticker}_{section}_{uuid.uuid4().hex}.wav"
-                wave_file(filename, data)
-                logger.info(f"Successfully created audio file: {filename}")
-
-                # Return JSON with summary and audio filename
-                return jsonify({"ticker": ticker, "section": section, "summary": summary, "audio_file": filename})
-            except Exception as e:
-                logger.error(f"TTS generation failed: {e}")
-                # Return summary without audio on TTS failure
-                return jsonify({"ticker": ticker, "section": section, "summary": summary, "audio_file": None})
-        else:
-            # Return summary only when TTS disabled
-            return jsonify({"ticker": ticker, "section": section, "summary": summary, "audio_file": None})
+        # Return summary only (TTS disabled)
+        return jsonify({"ticker": ticker, "section": section, "summary": summary})
 
     except Exception as e:
         logger.error(f"Error in analyze_10k: {e}")
