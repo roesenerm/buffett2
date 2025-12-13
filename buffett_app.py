@@ -129,23 +129,33 @@ def extract_sections(text):
 
 def analyze_with_gemini(section_name, section_text):
     """Send section text to Gemini for summarization."""
+    # Truncate to avoid huge API payloads and timeouts
+    MAX_TEXT_LENGTH = 15000
+    truncated_text = section_text[:MAX_TEXT_LENGTH]
+    if len(section_text) > MAX_TEXT_LENGTH:
+        truncated_text += f"\n\n[Text truncated - original length: {len(section_text)} characters]"
+    
     prompt = f"""
     You are analyzing a 10-K filing.
     Section: {section_name}
     Text:
-    {section_text}  # chunk to avoid token limits
+    {truncated_text}
 
     Task: Summarize the key points in plain English.
     """
-    response = client.models.generate_content(
-        model="gemini-2.5-flash",
-        config=types.GenerateContentConfig(
-            system_instruction="You are Warren Buffett. " \
-            "Summarize financial documents clearly and concisely. " \
-            "Using tenets from the document 'The Warren Buffett Way' by Robert Hagstrom in your analysis."),
-        contents=prompt
-    )
-    return response.text
+    try:
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            config=types.GenerateContentConfig(
+                system_instruction="You are Warren Buffett. " \
+                "Summarize financial documents clearly and concisely. " \
+                "Using tenets from the document 'The Warren Buffett Way' by Robert Hagstrom in your analysis."),
+            contents=prompt
+        )
+        return response.text
+    except Exception as e:
+        logger.error(f"Gemini API error: {e}")
+        raise
 
 @app.route("/")
 def home():
