@@ -171,6 +171,30 @@
             border-radius: 8px;
             border-left: 5px solid #e74c3c;
         }
+
+        .generate-audio-btn {
+            background: linear-gradient(135deg, #2ecc71, #27ae60);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 15px;
+            width: auto;
+        }
+
+        .generate-audio-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(46, 204, 113, 0.3);
+        }
+
+        .generate-audio-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
     </style>
 </head>
 <body>
@@ -221,7 +245,8 @@
             resultDiv.innerHTML = '<div class="loading">Fetching and analyzing the latest 10-K filing...</div>';
 
             try {
-                const response = await fetch(`/analyze/10k/${ticker}/${encodeURIComponent(section)}`);
+                // Always fetch without TTS initially
+                const response = await fetch(`/analyze/10k/${ticker}/${encodeURIComponent(section)}?tts=false`);
                 const contentType = response.headers.get('content-type') || '';
                 let data;
                 if (contentType.includes('application/json')) {
@@ -235,13 +260,10 @@
                     resultDiv.innerHTML = `
                         <h2 class="result-header">${data.ticker} - ${data.section.charAt(0).toUpperCase() + data.section.slice(1)}</h2>
                         <div class="summary">${data.summary}</div>
-                        <div class="audio-section">
-                            <h3>🎧 Audio Summary</h3>
-                            <audio controls preload="auto">
-                                <source src="/audio/${data.audio_file}" type="audio/wav">
-                                Your browser does not support audio playback.
-                            </audio>
-                        </div>
+                        <button class="generate-audio-btn" onclick="generateAudio('${ticker}', '${encodeURIComponent(section)}')">
+                            🎧 Generate Audio Summary
+                        </button>
+                        <div id="audioContainer"></div>
                     `;
                 } else {
                     const msg = data && data.error ? data.error : `Request failed with status ${response.status}`;
@@ -254,6 +276,49 @@
                 submitBtn.textContent = 'Analyze Filing';
             }
         });
+
+        async function generateAudio(ticker, section) {
+            const audioBtn = document.querySelector('.generate-audio-btn');
+            const audioContainer = document.getElementById('audioContainer');
+            
+            audioBtn.disabled = true;
+            audioBtn.textContent = 'Generating Audio...';
+            audioContainer.innerHTML = '<div class="loading">Generating audio (this may take 30-60 seconds)...</div>';
+
+            try {
+                const response = await fetch(`/analyze/10k/${ticker}/${decodeURIComponent(section)}?tts=true`);
+                const contentType = response.headers.get('content-type') || '';
+                let data;
+                if (contentType.includes('application/json')) {
+                    data = await response.json();
+                } else {
+                    const text = await response.text();
+                    throw new Error(`Unexpected response format. Status ${response.status}. Body: ${text.slice(0, 200)}`);
+                }
+
+                if (response.ok && data.audio_file) {
+                    audioContainer.innerHTML = `
+                        <div class="audio-section">
+                            <h3>🎧 Audio Summary</h3>
+                            <audio controls preload="auto" autoplay>
+                                <source src="/audio/${data.audio_file}" type="audio/wav">
+                                Your browser does not support audio playback.
+                            </audio>
+                        </div>
+                    `;
+                    audioBtn.style.display = 'none';
+                } else {
+                    const msg = data && data.error ? data.error : 'Failed to generate audio. Try again or use a different section.';
+                    audioContainer.innerHTML = `<div class="error">${msg}</div>`;
+                    audioBtn.disabled = false;
+                    audioBtn.textContent = '🎧 Generate Audio Summary';
+                }
+            } catch (error) {
+                audioContainer.innerHTML = `<div class="error">Audio generation failed: ${error.message}</div>`;
+                audioBtn.disabled = false;
+                audioBtn.textContent = '🎧 Generate Audio Summary';
+            }
+        }
     </script>
 </body>
 </html>
