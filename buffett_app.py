@@ -1,7 +1,7 @@
 import os
 import requests
 from bs4 import BeautifulSoup
-from flask import Flask, jsonify, send_file, render_template
+from flask import Flask, jsonify, send_file, render_template, request
 from google import genai
 from google.genai import types
 import re
@@ -202,34 +202,42 @@ def analyze_10k(ticker, section):
         if not summary:
             return jsonify({"error": "Failed to generate summary"}), 500
 
-        # Generate TTS audio from summary using Gemini
-        try:
-            logger.info("Generating TTS audio...")
-            tts_response = client.models.generate_content(
-                model="gemini-2.5-flash-preview-tts",
-                contents=f"Read this summary: {summary}",
-                config=types.GenerateContentConfig(
-                    response_modalities=["AUDIO"],
-                    speech_config=types.SpeechConfig(
-                        voice_config=types.VoiceConfig(
-                            prebuilt_voice_config=types.PrebuiltVoiceConfig(
-                                voice_name='Kore',
+        # Make TTS optional via query param (?tts=true|false)
+        tts_enabled = request.args.get("tts", "false").lower() == "true"
+        
+        if tts_enabled:
+            # Generate TTS audio from summary using Gemini
+            try:
+                logger.info("Generating TTS audio...")
+                tts_response = client.models.generate_content(
+                    model="gemini-2.5-flash-preview-tts",
+                    contents=f"Read this summary: {summary}",
+                    config=types.GenerateContentConfig(
+                        response_modalities=["AUDIO"],
+                        speech_config=types.SpeechConfig(
+                            voice_config=types.VoiceConfig(
+                                prebuilt_voice_config=types.PrebuiltVoiceConfig(
+                                    voice_name='Kore',
+                                )
                             )
-                        )
-                    ),
+                        ),
+                    )
                 )
-            )
 
-            data = tts_response.candidates[0].content.parts[0].inline_data.data
-            filename = f"{ticker}_{section}_{uuid.uuid4().hex}.wav"
-            wave_file(filename, data)
-            logger.info(f"Successfully created audio file: {filename}")
+                data = tts_response.candidates[0].content.parts[0].inline_data.data
+                filename = f"{ticker}_{section}_{uuid.uuid4().hex}.wav"
+                wave_file(filename, data)
+                logger.info(f"Successfully created audio file: {filename}")
 
-            # Return JSON with summary and audio filename
-            return jsonify({"ticker": ticker, "section": section, "summary": summary, "audio_file": filename})
-        except Exception as e:
-            logger.error(f"TTS generation failed: {e}")
-            return jsonify({"error": "Failed to generate audio"}), 500
+                # Return JSON with summary and audio filename
+                return jsonify({"ticker": ticker, "section": section, "summary": summary, "audio_file": filename})
+            except Exception as e:
+                logger.error(f"TTS generation failed: {e}")
+                # Return summary without audio on TTS failure
+                return jsonify({"ticker": ticker, "section": section, "summary": summary, "audio_file": None})
+        else:
+            # Return summary only when TTS disabled
+            return jsonify({"ticker": ticker, "section": section, "summary": summary, "audio_file": None})
 
     except Exception as e:
         logger.error(f"Error in analyze_10k: {e}")
