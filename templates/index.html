@@ -222,7 +222,14 @@
 
             try {
                 const response = await fetch(`/analyze/10k/${ticker}/${encodeURIComponent(section)}`);
-                const data = await response.json();
+                const contentType = response.headers.get('content-type') || '';
+                let data;
+                if (contentType.includes('application/json')) {
+                    data = await response.json();
+                } else {
+                    const text = await response.text();
+                    throw new Error(`Unexpected response format. Status ${response.status}. Body: ${text.slice(0, 200)}`);
+                }
 
                 if (response.ok) {
                     resultDiv.innerHTML = `
@@ -237,7 +244,8 @@
                         </div>
                     `;
                 } else {
-                    resultDiv.innerHTML = `<div class="error">Error: ${data.error}</div>`;
+                    const msg = data && data.error ? data.error : `Request failed with status ${response.status}`;
+                    resultDiv.innerHTML = `<div class="error">Error: ${msg}</div>`;
                 }
             } catch (error) {
                 resultDiv.innerHTML = `<div class="error">An error occurred: ${error.message}</div>`;
