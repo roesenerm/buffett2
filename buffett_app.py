@@ -124,21 +124,18 @@ def analyze_with_gemini(section_name, section_text):
     You are a Berkshire-style analyst applying The Warren Buffett Way tenets. " \
     "Task: From the {section_name} and {truncated_text}, evaluate: economic moat (brand, network effects, data flywheel, economies of scale, switching costs), " \
     "customer/user retention, moat trajectory, 100-year durability & 5-year market closure resilience," \
-    "return on invested capital (ROIC) and its sustainability, and intrinsic value vs. market value. " \
     "Conclude with how Buffett/Munger might view the company." \
     "Sources/Constraints: Be specific, show math, and call out data gaps. " \
     "Plan (Buffett Way):" \
-    "A: Business Tenets - Is the business simple and understandable? Does it have a consistent record and favorable long-term prospects supported by moat pillars?" \
-    "B: Management Tenets - Is management rational, candid, and resistant to the institutional imperative? Is capital allocation owner oriented?" \
-    "C: Financial Tenets - Compute ROIC. Are returns on invested capital high and increasing? Is the company free cash flow positive with strong margins? Is retained earnings growing more than its market value per year?" \
-    "D: Valuation Tenets - Estimate instrinsic value (DCF/free cash flow) Is the stock price significantly below intrinsic value with a margin of safety? Is the market undervaluing the company's long-term prospects? Compare to market value (disocunt/fair/premium)"  \
-    "Checkpoints: After each section, note the evidence that supports/contradicts the tenet (e.g., 'Retnetion metric located in MD&A section shows; reconciles to Notes)'. " \
+    "A: Business Tenets - Is the business simple and understandable? \
+    "B: Management Tenets - Is management rational, candid, and resistant to the institutional imperative? \
+    "C: Financial Tenets - Is the company free cash flow positive with strong margins? \
+    "D: Valuation Tenets - Estimate instrinsic value (DCF/free cash flow) \
+    "Checkpoints: After each section, note the evidence that supports/contradicts the tenet (e.g., 'Retention metric located in MD&A section shows; reconciles to Notes)'. " \
     "If a check fails, stop, explain the gap, revise the plan, and resume that section." \
     "In-step refine (self-query): When the 10k is vague, ask one targeted question (e.g., 'Where is cusomter concetration discolsed?') and use that answer to proceed. " \
     "Delieverable:" \
     "Moat & Durability memo (bulleted; 1 page)" \
-    "Owner-Earnings & ROIC worksheet (inputs, formulas, results)" \
-    "Valuation summary (method, assumptions, range, market vs. intrinsic value, margin of safety)" \
     "Buffett/Munger lens (pass, fail per tent, with citations)"
     """
     try:
