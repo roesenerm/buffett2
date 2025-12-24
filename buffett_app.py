@@ -115,7 +115,7 @@ def extract_sections(text):
 def analyze_with_gemini(section_name, section_text):
     """Send section text to Gemini for summarization."""
     # Truncate to avoid huge API payloads and timeouts
-    MAX_TEXT_LENGTH = 15000
+    MAX_TEXT_LENGTH = 100000
     truncated_text = section_text[:MAX_TEXT_LENGTH]
     if len(section_text) > MAX_TEXT_LENGTH:
         truncated_text += f"\n\n[Text truncated - original length: {len(section_text)} characters]"
@@ -172,6 +172,23 @@ def analyze_10k(ticker, section):
 
         # Normalize keys for lookup
         normalized_sections = {k.lower(): v for k, v in sections.items()}
+
+        # Build a combined section of Business + Risk Factors + MD&A
+        combined_order = [
+            "business",
+            "risk factors",
+            "management's discussion and analysis"
+        ]
+        combined_parts = []
+        for key in combined_order:
+            if key in normalized_sections:
+                # add a clear header before each part
+                header = key.title()
+                combined_parts.append(f"{header}\n\n{normalized_sections[key]}")
+
+        if combined_parts:
+            normalized_sections["combined"] = "\n\n".join(combined_parts)
+
         print(f"✓ Found sections: {list(normalized_sections.keys())}")
         section_key = section.lower()
 
