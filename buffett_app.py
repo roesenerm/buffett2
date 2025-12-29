@@ -119,35 +119,90 @@ def analyze_with_gemini(section_name, section_text):
     truncated_text = section_text[:MAX_TEXT_LENGTH]
     if len(section_text) > MAX_TEXT_LENGTH:
         truncated_text += f"\n\n[Text truncated - original length: {len(section_text)} characters]"
-    
-    prompt = f"""
-    You are a Berkshire-style analyst applying The Warren Buffett Way tenets. " \
-    "Task: From the {section_name} and {truncated_text}, evaluate: economic moat (brand, network effects, data flywheel, economies of scale, switching costs), " \
-    "customer/user retention, moat trajectory, 100-year durability & 5-year market closure resilience," \
-    "Conclude with how Buffett/Munger might view the company." \
-    "Sources/Constraints: Be specific, show math, and call out data gaps. " \
-    "Plan (Buffett Way):" \
-    "A: Business Tenets - Is the business simple and understandable? \
-    "B: Management Tenets - Is management rational, candid, and resistant to the institutional imperative? \
-    "C: Financial Tenets - Is the company free cash flow positive with strong margins? \
-    "D: Valuation Tenets - Estimate instrinsic value (DCF/free cash flow) \
-    "Checkpoints: After each section, note the evidence that supports/contradicts the tenet (e.g., 'Retention metric located in MD&A section shows; reconciles to Notes)'. " \
-    "If a check fails, stop, explain the gap, revise the plan, and resume that section." \
-    "In-step refine (self-query): When the 10k is vague, ask one targeted question (e.g., 'Where is cusomter concetration discolsed?') and use that answer to proceed. " \
-    "Delieverable:" \
-    "Moat & Durability memo (bulleted; 1 page)" \
-    "Buffett/Munger lens (pass, fail per tent, with citations)"
-    """
+
+    # Per-section prompt templates and (optional) model choices
+    section_key = (section_name or "").lower()
+
+    prompt_templates = {
+        "business": (
+            "You are an equity analyst focusing on business model, market position, "
+            "and competitive advantages.\n\nSection: {section_name}\n\n{section_text}\n\n"
+            "Tasks:\n"
+            "- Explain the business model and primary revenue drivers.\n"
+            "- Identify signs of durable competitive advantage (moat).\n"
+            "- Note material data gaps and where to look next.\n"
+            "Deliverable: Concise memo (bulleted, 6-10 bullets)."
+        ),
+        "risk factors": (
+            "You are a risk analyst.\n\nSection: {section_name}\n\n{section_text}\n\n"
+            "Tasks:\n"
+            "- Extract and summarize top 5 material risks with likelihood/impact.\n"
+            "- Flag any qualitative language that obscures magnitude.\n"
+            "Deliverable: Ranked risk list with short rationale."
+        ),
+        "management's discussion and analysis": (
+            "You are a financial analyst focused on management commentary.\n\nSection: {section_name}\n\n{section_text}\n\n"
+            "Tasks:\n"
+            "- Pull out key operating metrics, trends, and management tone.\n"
+            "- Assess disclosures for transparency and conservative accounting.\n"
+            "Deliverable: MD&A summary with citations to named disclosures."
+        ),
+        "quantitative and qualitative disclosures": (
+            "You are a numbers-focused analyst.\n\nSection: {section_name}\n\n{section_text}\n\n"
+            "Tasks:\n"
+            "- Identify material quantitative disclosures and reconcile to narrative.\n"
+            "- Call out rounding, restatements, or discrepancies.\n"
+            "Deliverable: Short reconciled data checklist."
+        ),
+        "financial statements": (
+            "You are an accounting and valuation analyst.\n\nSection: {section_name}\n\n{section_text}\n\n"
+            "Tasks:\n"
+            "- Summarize income statement, balance sheet, cash flow highlights.\n"
+            "- Extract free cash flow and perform a quick sanity DCF.\n"
+            "Deliverable: Key financials + headline valuation range."
+        ),
+        "combined": (
+            "You are a senior investor synthesizing Business, Risks, and MD&A.\n\nSection: {section_name}\n\n{section_text}\n\n"
+            "Tasks:\n"
+            "- Produce an integrated moat & durability memo in Buffett style.\n"
+            "- Provide one suggested follow-up question and critical citations.\n"
+            "Deliverable: 1-page investor memo."
+        ),
+    }
+
+    # Lightweight model selection per section (defaults to the flash model)
+    model_map = {
+        "financial statements": "gemini-2.5-flash",
+        "combined": "gemini-2.5-flash",
+        "management's discussion and analysis": "gemini-2.5-flash",
+        "risk factors": "gemini-2.5-flash",
+        "business": "gemini-2.5-flash",
+        "quantitative and qualitative disclosures": "gemini-2.5-flash",
+    }
+
+    template = prompt_templates.get(section_key, None)
+    if template:
+        prompt = template.format(section_name=section_name, section_text=truncated_text)
+    else:
+        # Fallback to a general Buffett-style analytic prompt
+        prompt = (
+            f"You are a Berkshire-style analyst.\nSection: {section_name}\n\n{truncated_text}\n\n"
+            "Tasks: Identify moat, management quality, cashflow durability, and valuation.\n"
+            "Deliverable: Bulleted memo."
+        )
+
+    model = model_map.get(section_key, "gemini-2.5-flash")
+
     try:
         response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            config=types.GenerateContentConfig(
-                system_instruction="You are Warren Buffett."),
+            model=model,
+            config=types.GenerateContentConfig(system_instruction="You are an expert investment analyst."),
             contents=prompt
         )
-        return response.text
+        # `response.text` is used elsewhere in the file; preserve that interface
+        return getattr(response, "text", None) or str(response)
     except Exception as e:
-        logger.error(f"Gemini API error: {e}")
+        logger.error(f"Gemini API error for section '{section_name}': {e}")
         raise
 
 @app.route("/")
